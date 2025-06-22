@@ -327,7 +327,6 @@ async function loadSales() {
             </p>
             <p><b>Método de pago:</b> ${v.metodo_pago || '-'}</p>
             <p><b>Operador:</b> ${v.operador     || '-'}</p>
-            <p><b>Fecha de pago:</b> ${fechaPago}</p>
         `;
         list.appendChild(card);
     });
