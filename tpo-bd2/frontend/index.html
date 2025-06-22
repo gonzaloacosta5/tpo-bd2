@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TPO BD2 - Tienda</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+    <header>
+        <div class="inner container">
+            <h1>TPO BD2</h1>
+            <nav>
+                <div class="nav-main-group">
+                    <button id="navProducts">Productos</button>
+                    <button id="navCart">Carrito</button>
+                    <button id="navSales">Ventas</button>
+                    <button id="navPayments">Pagos</button>
+                    <button id="navProfile">Perfil</button>
+                    <button id="navAdmin">Gestión</button>
+                    <button id="navUtils">Utilidades</button>
+                </div>
+                <div class="nav-session-group">
+                    <button id="showLogin" class="session-btn">Login</button>
+                    <button id="showRegister" class="session-btn">Registro</button>
+                    <button id="logoutBtn" class="hidden session-btn">Salir</button>
+                    <span id="welcome"></span>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+
+        <section id="loginSection" class="hidden">
+            <h2>Login</h2>
+            <form id="loginForm" class="form-container">
+                <input type="text" id="loginUser" placeholder="Usuario" required />
+                <input type="password" id="loginPass" placeholder="Password" required />
+                <button type="submit">Entrar</button>
+            </form>
+        </section>
+
+        <section id="registerSection" class="hidden">
+            <h2>Registro</h2>
+            <form id="registerForm" class="form-container">
+                <input type="text" id="regName" placeholder="Nombre" required />
+                <input type="text" id="regLast" placeholder="Apellido" required />
+                <input type="text" id="regUser" placeholder="Usuario" required />
+                <input type="password" id="regPass" placeholder="Password" required />
+                <input type="text" id="regDni" placeholder="DNI" />
+                <input type="text" id="regAddress" placeholder="Dirección" />
+                <input type="text" id="regIva" placeholder="Condición IVA" />
+                <button type="submit">Crear</button>
+            </form>
+        </section>
+
+        <section id="productSection" class="hidden">
+            <h2>Productos</h2>
+            <div id="productList" class="card-grid"></div>
+        </section>
+
+        <section id="cartSection" class="hidden">
+            <h2>Carrito</h2>
+            <div id="cartList" class="card-grid"></div>
+            <div id="cartActions" class="form-container">
+                <button id="confirmCart">Confirmar pedido</button>
+                <button id="viewCartHistory">Historial</button>
+            </div>
+            <div id="cartHistory" class="hidden">
+                <ul id="cartHistoryList"></ul>
+            </div>
+        </section>
+
+        <section id="orderSection" class="hidden">
+            <h2>Pedido pendiente</h2>
+            <div id="orderInfo"></div>
+            <form id="payForm" class="form-container">
+                <select id="payMethod" required>
+                    <option value="Efectivo">Efectivo</option>
+                    <option value="MP">MercadoPago</option>
+                    <option value="Tarjeta">Tarjeta</option>
+                </select>
+                <div id="bankLogoContainer" style="margin-bottom: 8px;">
+                    <img id="bankLogo" src="" style="height: 38px; display: none;">
+                </div>
+                <div id="cardFields" class="hidden">
+                    <input type="text" id="cardNumber" placeholder="Número de tarjeta" maxlength="19" pattern="[0-9 ]*" />
+                    <input type="text" id="cardName" placeholder="Nombre en tarjeta" maxlength="40" />
+                    <input type="text" id="cardExp" placeholder="MM/AA" maxlength="5" />
+                    <input type="text" id="cardCCV" placeholder="CCV" maxlength="4" pattern="[0-9]{3,4}" />
+                    <div class="save-card-row">
+                        <input type="checkbox" id="saveCard" />
+                        <label for="saveCard">Guardar tarjeta</label>
+                    </div>
+                </div>
+                <div class="pay-btns">
+                    <button type="button" id="deleteOrder" class="danger-btn">Cancelar Pedido</button>
+                    <button type="submit">Pagar</button>
+                </div>
+            </form>
+        </section>
+
+        <section id="salesSection" class="hidden">
+            <h2>Historial de Ventas</h2>
+            <div id="salesList" class="card-grid"></div>
+        </section>
+        <section id="paymentsSection" class="hidden">
+            <h2>Historial de Pagos</h2>
+            <div id="paymentsList" class="card-grid"></div>
+        </section>
+
+        <section id="utilsSection" class="hidden">
+            <h2>Utilidades</h2>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 1.3rem;">
+                <button id="checkHealth" class="button" 
+                    style="width: 320px; max-width: 98vw; margin: 0.8rem 0 0.2rem 0; font-size: 1.09rem;">
+                    Ver estado de servicios
+                </button>
+                <pre id="healthStatus" 
+                    style="width: 700px; max-width: 96vw; min-height: 38px; margin: 0 auto 0.6rem auto; border-radius: 10px; font-size: 1.09rem; background: #101014; color: #b6eac5;">
+                </pre>
+                <button id="loadPrices" class="button" 
+                    style="width: 210px; max-width: 95vw; margin: 0.2rem 0 0.7rem 0; font-size: 1.09rem;">
+                    Lista de precios
+                </button>
+            </div>
+            <div id="priceList" class="card-grid" style="justify-content: center; gap: 1.2rem; margin-top: 0.8rem;"></div>
+        </section>
+
+
+        <section id="profileSection" class="hidden">
+            <h2>Perfil</h2>
+            <div id="profileInfo"></div>
+            <button id="loadCards" class="button">Mis tarjetas</button>
+            <ul id="cardList"></ul>
+        </section>
+
+        <section id="adminSection" class="hidden">
+            <h2>Gestión de Productos</h2>
+            <div class="admin-menu">
+                <button id="showAddProduct">Agregar</button>
+                <button id="showUpdateProduct">Actualizar</button>
+                <button id="showDeleteProduct">Eliminar</button>
+                <button id="showHistory">Historial</button>
+            </div>
+            <div id="addProductSection" class="admin-subsection hidden">
+                <form id="addProductForm" class="form-container">
+                    <input type="text" id="prodName" placeholder="Nombre" required />
+                    <input type="text" id="prodDesc" placeholder="Descripción" />
+                    <input type="number" id="prodPrice" placeholder="Precio" step="0.01" required />
+                    <input type="number" id="prodStock" placeholder="Stock" />
+                    <input type="number" id="prodDiscount" placeholder="Descuento (%)" />
+                    <input type="text" id="prodImage" placeholder="URL Imagen" />
+                    <button type="submit">Agregar producto</button>
+                </form>
+            </div>
+            <div id="updateProductSection" class="admin-subsection hidden">
+                <form id="updateProductForm" class="form-container">
+                    <input type="text" id="updName" placeholder="Nombre del producto (actual)" required />
+                    <input type="text" id="updNewName" placeholder="Nuevo nombre" />
+                    <input type="text" id="updDesc" placeholder="Descripción" />
+                    <input type="number" id="updPrice" placeholder="Precio" step="0.01" />
+                    <input type="number" id="updStock" placeholder="Stock" />
+                    <input type="number" id="updDiscount" placeholder="Descuento (%)" />
+                    <input type="text" id="updImage" placeholder="URL Imagen" />
+                    <button type="submit">Actualizar producto</button>
+                </form>
+            </div>
+            <div id="deleteProductSection" class="admin-subsection hidden">
+                <form id="deleteProductForm" class="form-container">
+                    <input type="text" id="delName" placeholder="Nombre del producto" required />
+                    <button type="submit">Eliminar producto</button>
+                </form>
+            </div>
+            <div id="historySection" class="admin-subsection hidden">
+                <h3>Historial de Productos</h3>
+                <form id="historyForm" class="form-container">
+                    <input type="text" id="histProdName" placeholder="Nombre producto" required />
+                    <button type="submit">Ver historial</button>
+                </form>
+                <div id="historyList" class="card-grid"></div>
+            </div>
+        </section>
+    </div>
+
+    <div id="qtyModal" class="modal hidden">
+        <div class="modal-content">
+            <h3 id="qtyModalTitle"></h3>
+            <input type="number" id="qtyInput" min="1" value="1" />
+            <div class="modal-actions">
+                <button id="qtyConfirm">Confirmar</button>
+                <button id="qtyCancel">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+    <script>
+        document.getElementById('navPayments').addEventListener('click', () => {
+            toggleSection('paymentsSection');
+            loadPayments();
+        });
+        document.getElementById('showHistory').addEventListener('click', () => {
+        hideAllAdminSubsections();
+        document.getElementById('historySection').classList.remove('hidden');
+        });
+        document.getElementById('historyForm').addEventListener('submit', loadHistory);
+
+    </script>
+</body>
+</html>
