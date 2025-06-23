@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 from .utilities import mongo, chek_user_id, user_activity_log
+from .utilities import redis_client
 
 ventas = APIRouter(tags=["ventas"], prefix="/ventas")
 logger = logging.getLogger("uvicorn.error")
@@ -106,33 +107,41 @@ async def pagar_varias(user_id: str, pago: PagoMultiple):
         for item in venta.get("Carrito", []):
             prod = mongo.products.find_one({"_id": int(item["product_id"])})
             precio = prod.get("price", 0)
-            desc = prod.get("descuento", 0)
-            pu = round(precio * (1 - desc/100), 2)
+            desc   = prod.get("descuento", 0)
+            pu     = round(precio * (1 - desc/100), 2)
+
             new_cart.append({
-                **item,
+                "product_id":      item["product_id"],
+                "cantidad":        item["amount"],
+                "nombre":          prod.get("name"),
+                "description":     prod.get("description"),
+                "image":           prod.get("image"),
                 "precio_original": precio,
-                "descuento": desc,
+                "descuento":       desc,
                 "precio_unitario": pu,
-                "subtotal": round(pu * item.get("amount", 0), 2)
+                "subtotal":        round(pu * item["amount"], 2)
             })
+
         mongo.ventas.update_one(
             {"_id": venta["_id"]},
             {"$set": {
-                "Carrito": new_cart,
+                "Carrito":     new_cart,
                 "PagoCompleto": True,
-                "MetodoPago": metodo,
-                "operador": operador,
-                "FechaPago": pago_dict["fecha"],
-                "pago_id": pago_id
+                "MetodoPago":   metodo,
+                "operador":     operador,
+                "FechaPago":    pago_dict["fecha"],
+                "pago_id":      pago_id
             }}
         )
+
         for it in new_cart:
             mongo.products.update_one(
                 {"_id": int(it["product_id"])},
-                {"$inc": {"stock": -it.get("amount", 0)}}
+                {"$inc": {"stock": -it["cantidad"]}}
             )
 
     user_activity_log(user_id, "PURCHASE_MULTIPLE", pago.venta_ids)
+    redis_client.hdel(f"user:{user_id}", "carrito")
     return {"message": "Pago registrado", "pago_id": str(pago_id)}
 
 @ventas.get("/historial/{user_id}")

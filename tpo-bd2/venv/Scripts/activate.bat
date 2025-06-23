@@ -8,7 +8,7 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-set VIRTUAL_ENV=C:\Users\gonzalo\Desktop\verison final\TPO-BD2-master\venv
+set VIRTUAL_ENV=C:\Users\gonzalo\Downloads\tpo-bd2\tpo-bd2\venv
 
 if not defined PROMPT set PROMPT=$P$G
 

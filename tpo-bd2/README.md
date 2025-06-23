@@ -2,7 +2,7 @@
 # TPO-BD2
 
 Crear un entorno virtual:
-python3 -m venv venv
+python -m venv venv
 #env es el nombre del entorno
 
 Activar el entorno virtual:
