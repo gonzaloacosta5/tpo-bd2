@@ -727,7 +727,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dni = document.getElementById('regDni').value;
     const address = document.getElementById('regAddress').value;
     const iva_condition = document.getElementById('regIva').value;
-    const payload = { name, last_name, user_name, password, dni, address, iva_condition };
+    const payload = { name, last_name, user_name, password, dni, address, iva_condition};
 
     const res = await fetch('/usuario/register', {
         method: 'POST',

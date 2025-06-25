@@ -49,12 +49,9 @@ async def obtener_carrito(user_id):
         return []
     try:
         carrito = eval(carrito_raw)
-        logger.debug(f"Carrito raw eval result: {carrito}")
         if all(isinstance(x, str) for x in carrito):
             carrito = [json.loads(x) for x in carrito]
-            logger.debug(f"Carrito json loaded list: {carrito}")
-    except Exception as e:
-        logger.error(f"Error deserializando carrito: {e}")
+    except Exception:
         raise HTTPException(status_code=500, detail="Carrito corrupto")
     resultado = []
     for item in carrito:
@@ -80,34 +77,25 @@ async def agregar_carrito(user_id, carrito: Carrito):
     carrito_viejo = redis_client.hget(f"user:{user_id}", "carrito")
     try:
         carrito_viejo = [] if carrito_viejo is None else eval(carrito_viejo)
-        logger.debug(f"Carrito viejo eval: {carrito_viejo}")
         if all(isinstance(x, str) for x in carrito_viejo):
             carrito_viejo = [json.loads(x) for x in carrito_viejo]
-            logger.debug(f"Carrito viejo json list: {carrito_viejo}")
-    except Exception as e:
-        logger.warning(f"Error deserializando carrito previo: {e}")
+    except:
         carrito_viejo = []
     carrito_nuevo = copy.deepcopy(carrito_viejo)
     stock = await obtener_stock_producto(carrito.product_id)
     if stock < carrito.amount:
         raise HTTPException(status_code=400, detail="No hay mas productos en el stock")
-    amount = None
     for producto in carrito_nuevo:
         if carrito.product_id == producto.get("product_id"):
-            amount = producto.get("amount") + carrito.amount
-            if stock < amount:
+            cantidad = producto.get("amount") + carrito.amount
+            if stock < cantidad:
                 raise HTTPException(status_code=400, detail="No hay mas productos en el stock")
-            producto["amount"] = amount
+            producto["amount"] = cantidad
             break
-    if not amount:
+    else:
         carrito_nuevo.append(carrito.dict())
     redis_client.hset(f"user:{user_id}", "carrito", str(carrito_nuevo))
-    prod = mongo.products.find_one({"_id": int(carrito.product_id)})
-    user_activity_log(user_id, "ADD_CART", {
-        "product_id": carrito.product_id,
-        "name": prod["name"] if prod else "",
-        "amount": carrito.amount
-    })
+    user_activity_log(user_id, "ADD_CART", json.dumps(carrito_nuevo))
     return carrito_nuevo
 
 @carrito.delete("/borrar/user_id/{user_id}")
@@ -131,18 +119,13 @@ async def borar_carrito(user_id, carrito: Carrito):
                 rem = producto.get("amount") - carrito.amount
                 if rem < 0:
                     raise HTTPException(status_code=400, detail="No hay suficientes productos en el carrito")
-                elif rem == 0:
+                if rem == 0:
                     nuevo.remove(producto)
                 else:
                     producto["amount"] = rem
             break
     redis_client.hset(f"user:{user_id}", "carrito", str(nuevo))
-    prod = mongo.products.find_one({"_id": int(carrito.product_id)})
-    user_activity_log(user_id, "REDUCE_CART", {
-        "product_id": carrito.product_id,
-        "name": prod["name"] if prod else "",
-        "amount": carrito.amount
-    })
+    user_activity_log(user_id, "REDUCE_CART", json.dumps(nuevo))
     return nuevo
 
 @carrito.post("/confirmar/user_id/{user_id}")
@@ -155,7 +138,7 @@ async def confirmar_carrito(user_id):
         carrito = eval(raw)
         if all(isinstance(x, str) for x in carrito):
             carrito = [json.loads(x) for x in carrito]
-    except Exception:
+    except:
         raise HTTPException(status_code=400, detail="Error al interpretar el carrito")
     if not carrito:
         raise HTTPException(status_code=400, detail="No hay carrito cargado")
@@ -183,7 +166,7 @@ async def confirmar_carrito(user_id):
         condicion_iva=user_data.get("iva_condition"),
     )
     idv = crear_venta(pedido.dict())
-    user_activity_log(user_id, "ORDER_CREATED", carrito)
+    user_activity_log(user_id, "ORDER_CREATED", json.dumps(carrito))
     return {"idVenta": idv, "Fecha": pedido.Fecha, "TotalDeVenta": total, "IVA": round(iva_rate*100,2)}
 
 @carrito.get("/pedido/user_id/{user_id}")
@@ -202,8 +185,6 @@ async def delete_pedido(user_id):
     user = chek_user_id(user_id)
     return eliminar_pedido(user_id)
 
-# Helpers: crear_venta, verificar_otro_pedido, eliminar_pedido, historial
-
 def crear_venta(pedido):
     col = mongo.ventas
     last = col.find_one({"_id":{"$type":"int"}}, sort=[("_id",-1)])
@@ -217,11 +198,12 @@ def verificar_otro_pedido(user_id):
 
 def eliminar_pedido(user_id):
     if not verificar_otro_pedido(user_id):
-        raise HTTPException(status_code=400,detail="No hay ningun pedido pendiente")
+        raise HTTPException(status_code=400, detail="No hay ningun pedido pendiente")
     venta = mongo.ventas.find_one({"idUser":user_id,"PagoCompleto":False})
-    venta["idVenta"]=str(venta.get("_id")); venta.pop("_id")
+    venta["idVenta"] = str(venta.get("_id"))
+    venta.pop("_id")
     mongo.ventas.delete_one({"idUser":user_id,"PagoCompleto":False})
-    user_activity_log(user_id,"ORDER_DELETED",str(venta.get("Carrito")))
+    user_activity_log(user_id, "ORDER_DELETED", json.dumps(venta.get("Carrito")))
     return {"message":"Pedido eliminado con éxito","venta":venta}
 
 @carrito.get("/historial/user_id/{user_id}")
@@ -230,16 +212,18 @@ async def historial_carrito(user_id, limit: int=20):
     logs = obtener_historial_carrito(user_id, limit)
     out = []
     for log in logs:
-        t=log["event_type"]
+        t = log["event_type"]
         if t in EVENTO_CARRITO_DESCRIPCION:
-            desc=""
+            desc = ""
             if t in ("ADD_CART","REDUCE_CART"):
-                info=log.get("carrito")
-                try: info=json.loads(info)
-                except: info={}
-                n=info.get("name","")
-                c=info.get("amount","")
-                desc=f"{n} (x{c})" if n and c else ""
+                info = log.get("carrito")
+                try:
+                    info = json.loads(info)
+                except:
+                    info = {}
+                n = info.get("name","")
+                c = info.get("amount","")
+                desc = f"{n} (x{c})" if n and c else ""
             out.append({"fecha":log["event_time"],"tipo":t,"descripcion":EVENTO_CARRITO_DESCRIPCION[t],"producto":desc})
     return out
 
@@ -247,20 +231,16 @@ async def historial_carrito(user_id, limit: int=20):
 async def restaurar_carrito(user_id, event_time: str):
     user = chek_user_id(user_id)
     estado = obtener_estado_carrito(user_id, event_time)
-    logger.debug(f"Estado raw: {estado}")
     if not estado:
-        raise HTTPException(status_code=404,detail="Estado no encontrado")
+        raise HTTPException(status_code=404, detail="Estado no encontrado")
     try:
         lista = eval(estado)
-        logger.debug(f"Lista eval: {lista}")
-        if all(isinstance(x,str) for x in lista):
-            lista=[json.loads(x) for x in lista]
-            logger.debug(f"Lista parsed: {lista}")
-        redis_client.hset(f"user:{user_id}","carrito",str(lista))
+        if all(isinstance(x, str) for x in lista):
+            lista = [json.loads(x) for x in lista]
+        redis_client.hset(f"user:{user_id}", "carrito", str(lista))
     except Exception as e:
-        logger.error(f"Error restaurando carrito: {e}")
-        raise HTTPException(status_code=500,detail=f"Error restaurando carrito: {e}")
-    return {"carrito":lista}
+        raise HTTPException(status_code=500, detail=f"Error restaurando carrito: {e}")
+    return {"carrito": lista}
 
 EVENTO_CARRITO_DESCRIPCION = {
     "ADD_CART": "Agregó un producto al carrito",

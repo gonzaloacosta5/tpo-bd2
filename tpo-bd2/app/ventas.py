@@ -5,6 +5,7 @@ from typing import Optional, List
 from datetime import datetime
 from .utilities import mongo, chek_user_id, user_activity_log
 from .utilities import redis_client
+from .utilities import IVA_RATES
 
 ventas = APIRouter(tags=["ventas"], prefix="/ventas")
 logger = logging.getLogger("uvicorn.error")
@@ -47,6 +48,9 @@ def get_card_operator(number: Optional[str]) -> Optional[str]:
         return "Cabal"
     return None
 
+from datetime import datetime
+from .utilities import mongo, chek_user_id, user_activity_log, redis_client, IVA_RATES
+
 @ventas.post("/pagar_varias")
 async def pagar_varias(user_id: str, pago: PagoMultiple):
     user = chek_user_id(user_id)
@@ -62,6 +66,9 @@ async def pagar_varias(user_id: str, pago: PagoMultiple):
             raise HTTPException(400, "Tarjeta no válida (Visa, Mastercard, AmEx, Cabal)")
         operador = op
 
+    condicion = user.get("iva_condition", "Responsable Inscripto")
+    tasa_iva = IVA_RATES.get(condicion, 21.0) / 100
+
     pendientes = list(mongo.ventas.find({
         "_id": {"$in": pago.venta_ids},
         "PagoCompleto": False
@@ -69,12 +76,13 @@ async def pagar_varias(user_id: str, pago: PagoMultiple):
     if not pendientes:
         raise HTTPException(404, "No hay ventas pendientes para pagar")
 
-    monto_total = sum(v.get("TotalDeVenta", 0) for v in pendientes)
-    if monto_total == 0:
-        for v in pendientes:
-            iva_rate = (v.get("IVA", 0) or 21) / 100
+    monto_total = 0.0
+    for v in pendientes:
+        if v.get("TotalDeVenta", 0) > 0:
+            monto_total += v["TotalDeVenta"]
+        else:
             subtotal = sum(item.get("subtotal", 0) for item in v.get("Carrito", []))
-            monto_total += round(subtotal * (1 + iva_rate), 2)
+            monto_total += round(subtotal * (1 + tasa_iva), 2)
 
     pago_dict = {
         "user_id": int(user_id),
@@ -125,12 +133,13 @@ async def pagar_varias(user_id: str, pago: PagoMultiple):
         mongo.ventas.update_one(
             {"_id": venta["_id"]},
             {"$set": {
-                "Carrito":     new_cart,
+                "Carrito":      new_cart,
                 "PagoCompleto": True,
                 "MetodoPago":   metodo,
                 "operador":     operador,
                 "FechaPago":    pago_dict["fecha"],
-                "pago_id":      pago_id
+                "pago_id":      pago_id,
+                "IVA":          IVA_RATES.get(condicion, 21.0)
             }}
         )
 
@@ -142,6 +151,7 @@ async def pagar_varias(user_id: str, pago: PagoMultiple):
 
     user_activity_log(user_id, "PURCHASE_MULTIPLE", pago.venta_ids)
     redis_client.hdel(f"user:{user_id}", "carrito")
+
     return {"message": "Pago registrado", "pago_id": str(pago_id)}
 
 @ventas.get("/historial/{user_id}")

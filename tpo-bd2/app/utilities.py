@@ -21,6 +21,13 @@ cassandra_host = environ.get("CASSANDRA_HOST", "127.0.0.1")
 cassandra = Cluster([cassandra_host], port=9042)
 session = cassandra.connect()
 
+IVA_RATES = {
+    "Responsable Inscripto": 21.0,
+    "Monotributista": 10.5,
+    "Consumidor Final": 21.0,
+    "Exento": 0.0,
+}
+
 session.execute("""
     CREATE KEYSPACE IF NOT EXISTS usuarios
     WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}
@@ -38,15 +45,15 @@ session.execute("""
 
 def user_activity_log(user_id, evento, carrito):
     try:
-        query = """
-            INSERT INTO user_activity_log (user_id, event_time, event_type, carrito)
-            VALUES (%s, %s, %s, %s)
-        """
+        query = (
+            "INSERT INTO user_activity_log (user_id, event_time, event_type, carrito)"
+            " VALUES (%s, %s, %s, %s)"
+        )
         session.execute(query, (str(user_id), datetime.now(), evento, str(carrito)))
         return True
-    except Exception as e:
-        print(f"Error logeo de usuario: {e}")
+    except Exception:
         return False
+
 
 def chek_user_id(user_id):
     user = mongo.users.find_one({"_id": int(user_id)})
@@ -56,6 +63,7 @@ def chek_user_id(user_id):
     if not session_redis:
         raise HTTPException(status_code=404, detail="Usuario no logeado")
     return user
+
 
 def get_next_user_id():
     counters = mongo.counters
@@ -67,10 +75,10 @@ def get_next_user_id():
     )
     return ret["seq"]
 
+
 async def obtener_stock_producto(idProducto: str) -> int:
-    collection = mongo.products
     try:
-        producto = collection.find_one(
+        producto = mongo.products.find_one(
             {"_id": int(idProducto), "disable_date": None},
             {"stock": 1, "_id": 0}
         )
@@ -82,54 +90,50 @@ async def obtener_stock_producto(idProducto: str) -> int:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 def obtener_ultimo_carrito(user_id):
     try:
-        query = """
-            SELECT carrito FROM user_activity_log
-            WHERE user_id = %s AND event_type = 'LOGOUT'
-            ORDER BY event_time DESC
-            LIMIT 1 ALLOW FILTERING;
-        """
+        query = (
+            "SELECT carrito FROM user_activity_log"
+            " WHERE user_id = %s AND event_type = 'LOGOUT'"
+            " ORDER BY event_time DESC LIMIT 1 ALLOW FILTERING;"
+        )
         result = session.execute(query, (str(user_id),))
         row = result.one()
         return row[0] if row else None
-    except Exception as e:
-        print(f"Error al obtener carrito: {e}")
+    except Exception:
         return None
+
 
 def obtener_historial_carrito(user_id: str, limit: int = 20):
     try:
-        query = """
-            SELECT event_time, event_type, carrito FROM user_activity_log
-            WHERE user_id = %s
-            ORDER BY event_time DESC
-            LIMIT %s ALLOW FILTERING;
-        """
+        query = (
+            "SELECT event_time, event_type, carrito FROM user_activity_log"
+            " WHERE user_id = %s"
+            " ORDER BY event_time DESC LIMIT %s ALLOW FILTERING;"
+        )
         rows = session.execute(query, (str(user_id), limit))
         return [
-            {
-                "event_time": row.event_time.isoformat(),
-                "event_type": row.event_type,
-                "carrito": row.carrito,
-            }
+            {"event_time": row.event_time.isoformat(), "event_type": row.event_type, "carrito": row.carrito}
             for row in rows
         ]
-    except Exception as e:
-        print(f"Error al obtener historial: {e}")
+    except Exception:
         return []
+
 
 def obtener_estado_carrito(user_id: str, event_time: str):
     try:
         dt = datetime.fromisoformat(event_time)
-        query = """
-            SELECT carrito FROM user_activity_log
-            WHERE user_id = %s AND event_time = %s LIMIT 1;
-        """
+        query = (
+            "SELECT carrito FROM user_activity_log"
+            " WHERE user_id = %s AND event_time <= %s"
+            " ORDER BY event_time DESC LIMIT 1;"
+        )
         row = session.execute(query, (str(user_id), dt)).one()
         return row.carrito if row else None
-    except Exception as e:
-        print(f"Error al obtener estado carrito: {e}")
+    except Exception:
         return None
+
 
 IVA_MAPPING = {
     "responsable inscripto": 0.21,
@@ -138,19 +142,17 @@ IVA_MAPPING = {
     "exento": 0.0,
 }
 
+
 def obtener_porcentaje_iva(condicion: str) -> float:
     if not condicion:
         return 0.21
-
     clave = condicion.strip().lower()
     if clave in IVA_MAPPING:
         return IVA_MAPPING[clave]
-
     match = re.search(r"(\d+[\.,]?\d*)", clave)
     if match:
         try:
             return float(match.group(1).replace(",", ".")) / 100
         except ValueError:
             pass
-
     return 0.21

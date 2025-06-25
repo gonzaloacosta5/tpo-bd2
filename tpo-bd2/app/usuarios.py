@@ -12,6 +12,7 @@ import bson
 from cassandra.cluster import Cluster
 from .utilities import mongo, redis_client, cassandra, mongo_client, user_activity_log, chek_user_id
 from dotenv import load_dotenv
+from enum import Enum
 
 load_dotenv()
 
@@ -20,6 +21,13 @@ usuario = APIRouter(tags=["usuario"], prefix="/usuario")
 class TokenData(BaseModel):
     username: str | None = None
 
+
+class IVACondition(str, Enum):
+    RESPONSABLE_INSCRIPTO = "Responsable Inscripto"
+    MONOTRIBUTISTA        = "Monotributista"
+    CONSUMIDOR_FINAL      = "Consumidor Final"
+    EXENTO                = "Exento"
+
 class User(BaseModel):
     name: str
     last_name: Optional[str] = Field(default=None)
@@ -27,7 +35,8 @@ class User(BaseModel):
     email: Optional[str] = Field(default=None)
     dni: Optional[str] = Field(min_length=8, max_length=16, default=None)
     address: Optional[str] = Field(default=None)
-    iva_condition: Optional[str] = Field(default=None)
+    iva_condition: Optional[IVACondition] = Field(default=IVACondition.CONSUMIDOR_FINAL)
+
 
 class UserInDb(User):
     password: str
